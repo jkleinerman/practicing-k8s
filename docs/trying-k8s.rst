@@ -313,3 +313,259 @@ Scale a deployment
   nginx-deployment-7558575c69-sntg6   1/1     Running   0          24s
   nginx-deployment-7558575c69-x6zp2   1/1     Running   0          24s
   nginx-deployment-7558575c69-z4str   1/1     Running   0          11m
+
+
+
+Describe the deployment
++++++++++++++++++++++++
+
+.. code-block::
+
+  # kubectl describe deployments.apps nginx-deployment
+
+
+
+
+Delete the deployment using the file
+++++++++++++++++++++++++++++++++++++
+
+.. code-block::
+
+  # kubectl delete -f deployment.yaml
+
+
+
+DaemonSet
+~~~~~~~~~
+
+A DaemonSet ensures that all (or some) Nodes run a copy of a Pod. As nodes are added to the cluster, Pods are added to them. As nodes are removed from the cluster, those Pods are garbage collected. Deleting a DaemonSet will clean up the Pods it created.
+
+Some typical uses of a DaemonSet are:
+
+- running a cluster storage daemon on every node
+- running a logs collection daemon on every node
+- running a node monitoring daemon on every node
+
+In a simple case, one DaemonSet, covering all nodes, would be used for each type of daemon. A more complex setup might use multiple DaemonSets for a single type of daemon, but with different flags and/or different memory and cpu requests for different hardware types.
+
+
+.. code-block::
+
+  # kubectl apply -f daemonset.yaml
+  daemonset.apps/nginx-deployment created
+
+  # kubectl get all -o wide
+
+  NAME                         READY   STATUS    RESTARTS   AGE   IP         NODE                          NOMINATED NODE   READINESS GATES
+  pod/nginx-deployment-4s8rd   1/1     Running   0          23s   10.2.2.8   lke48122-76524-61d0a68f3022   <none>           <none>
+  pod/nginx-deployment-7n9cl   1/1     Running   0          23s   10.2.0.8   lke48122-76524-61d0a68f0b9e   <none>           <none>
+  pod/nginx-deployment-ld2jl   1/1     Running   0          23s   10.2.1.7   lke48122-76524-61d0a68f5457   <none>           <none>
+
+  NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+  service/kubernetes   ClusterIP   10.128.0.1   <none>        443/TCP   20h   <none>
+
+  NAME                              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE   CONTAINERS   IMAGES         SELECTOR
+  daemonset.apps/nginx-deployment   3         3         3       3            3           <none>          24s   nginx        nginx:alpine   app=nginx
+
+We can see one pod in each worker node.
+
+
+StatefulSets
+~~~~~~~~~~~~
+
+StatefulSet is the workload API object used to manage stateful applications.
+
+Manages the deployment and scaling of a set of Pods, and provides guarantees about the ordering and uniqueness of these Pods.
+
+Like a Deployment, a StatefulSet manages Pods that are based on an identical container spec. Unlike a Deployment, a StatefulSet maintains a sticky identity for each of their Pods. These pods are created from the same spec, but are not interchangeable: each has a persistent identifier that it maintains across any rescheduling.
+
+If you want to use storage volumes to provide persistence for your workload, you can use a StatefulSet as part of the solution. Although individual Pods in a StatefulSet are susceptible to failure, the persistent Pod identifiers make it easier to match existing volumes to the new Pods that replace any that have failed.
+
+
+The option ``storageClassName`` in the ``statefulset.yaml`` file refers to the storage driver of the provider. In this case, for Linode, it is ``linode-block-storage``.
+
+.. code-block::
+
+  # kubectl apply -f statefulset.yaml
+  statefulset.apps/my-csi-app-set created
+
+
+We can see the volume created in the Linode Dashboard:
+
+.. image:: imgs-docs/linode-volume.png
+
+
+.. code-block::
+
+  # kubectl describe pod my-csi-app-set-0
+
+In one of the lines we can see how the ``pvc`` (PersistentVolumeClaims) is attached.
+
+
+  Normal   SuccessfulAttachVolume  19m                attachdetach-controller  AttachVolume.Attach succeeded for volume "pvc-5126d452623e4c2d"
+
+
+PersistentVolumeClaims (PVC)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block::
+
+  # kubectl get pvc                                                                 ⎈ lke48122-ctx   15:15:46
+  NAME                       STATUS   VOLUME                 CAPACITY   ACCESS MODES   STORAGECLASS           AGE
+  csi-pvc-my-csi-app-set-0   Bound    pvc-5126d452623e4c2d   10Gi       RWO            linode-block-storage   26m
+
+
+Deleting the pvc
+
+.. code-block::
+
+  # kubectl delete pvc csi-pvc-my-csi-app-set-0                                     ⎈ lke48122-ctx   15:21:39
+  persistentvolumeclaim "csi-pvc-my-csi-app-set-0" deleted
+
+
+Networking in Kubernetes
+------------------------
+
+.. image:: imgs-docs/pod-networking.png
+
+
+Service
+~~~~~~~
+
+In Kubernetes, a Service is an abstraction which defines a logical set of Pods and a policy by which to access them (sometimes this pattern is called a micro-service). The set of Pods targeted by a Service is usually determined by a selector.
+
+
+Cluster IP
+++++++++++
+
+A Service in Kubernetes is a REST object, similar to a Pod. Like all of the REST objects, you can POST a Service definition to the API server to create a new instance
+
+.. code-block::
+
+  apiVersion: v1
+  kind: Service
+  metadata:
+    name: my-service
+  spec:
+    selector:
+      app: MyApp
+    ports:
+      - protocol: TCP
+        port: 80
+        targetPort: 9376
+
+
+.. code-block::
+
+  # kubectl apply -f cluster_ip.yaml                                                ⎈ lke48122-ctx   16:00:28
+  deployment.apps/hello created
+  service/hello created
+
+
+.. code-block::
+
+  # kubectl get all                                                                 ⎈ lke48122-ctx   16:00:54
+  NAME                         READY   STATUS    RESTARTS   AGE
+  pod/hello-868bcb8b84-9c22g   1/1     Running   0          71s
+  pod/hello-868bcb8b84-r4qj7   1/1     Running   0          71s
+  pod/hello-868bcb8b84-zdxgz   1/1     Running   0          71s
+
+  NAME                 TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+  service/hello        ClusterIP   10.128.137.215   <none>        8080/TCP   72s
+  service/kubernetes   ClusterIP   10.128.0.1       <none>        443/TCP    23h
+
+  NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+  deployment.apps/hello   3/3     3            3           72s
+
+  NAME                               DESIRED   CURRENT   READY   AGE
+  replicaset.apps/hello-868bcb8b84   3         3         3       72s
+
+
+.. code-block::
+
+  # kubectl describe service hello                                                  ⎈ lke48122-ctx   16:04:36
+  Name:              hello
+  Namespace:         default
+  Labels:            <none>
+  Annotations:       <none>
+  Selector:          role=hello
+  Type:              ClusterIP
+  IP Family Policy:  SingleStack
+  IP Families:       IPv4
+  IP:                10.128.137.215
+  IPs:               10.128.137.215
+  Port:              <unset>  8080/TCP
+  TargetPort:        8080/TCP
+  Endpoints:         10.2.1.8:8080,10.2.1.9:8080,10.2.2.10:8080
+  Session Affinity:  None
+  Events:            <none>
+
+Note: The IP is private to the cluster.
+
+
+Node Port
++++++++++
+
+.. code-block::
+
+  # kubectl apply -f node_port.yaml                                                 ⎈ lke48122-ctx   16:16:29
+  deployment.apps/hello created
+  service/hello created
+
+
+.. code-block::
+
+  # kubectl get nodes -o wide                                                       ⎈ lke48122-ctx   16:17:33
+  NAME                          STATUS   ROLES    AGE   VERSION   INTERNAL-IP      EXTERNAL-IP     OS-IMAGE                         KERNEL-VERSION         CONTAINER-RUNTIME
+  lke48122-76524-61d0a68f0b9e   Ready    <none>   24h   v1.22.2   192.168.192.47   50.116.56.155   Debian GNU/Linux 11 (bullseye)   5.10.0-9-cloud-amd64   docker://20.10.10
+  lke48122-76524-61d0a68f3022   Ready    <none>   24h   v1.22.2   192.168.192.65   198.74.62.108   Debian GNU/Linux 11 (bullseye)   5.10.0-9-cloud-amd64   docker://20.10.10
+  lke48122-76524-61d0a68f5457   Ready    <none>   24h   v1.22.2   192.168.192.48   198.74.62.28    Debian GNU/Linux 11 (bullseye)   5.10.0-9-cloud-amd64   docker://20.10.10
+
+
+
+.. code-block::
+
+  # curl http://50.116.56.155:30000                                                                  16:18:05
+  Hello, world!
+  Version: 1.0.0
+  Hostname: hello-868bcb8b84-w4mlt
+
+  # curl http://198.74.62.108:30000                                                                  16:20:04
+  Hello, world!
+  Version: 1.0.0
+  Hostname: hello-868bcb8b84-k4xrc
+
+  # curl http://50.116.56.155:30000                                                                  16:19:57
+  Hello, world!
+  Version: 1.0.0
+  Hostname: hello-868bcb8b84-p8bgp
+
+
+Load Balancer
++++++++++++++
+
+.. code-block::
+
+  # kubectl apply -f load_balancer.yaml
+  deployment.apps/hello created
+  service/hello created
+
+.. code-block::
+
+  # kubectl get svc
+  NAME         TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)          AGE
+  hello        LoadBalancer   10.128.165.26   170.187.131.84   8080:32736/TCP   3m34s
+  kubernetes   ClusterIP      10.128.0.1      <none>           443/TCP          25h
+
+.. code-block::
+
+  # curl http://170.187.131.84:8080                                                                  17:17:15
+  Hello, world!
+  Version: 1.0.0
+  Hostname: hello-868bcb8b84-kphrt
+
+Ingress
++++++++
+
+It routes the traffic to the appropiate pod according to the path.
+It is necessary to install a Nginx controller in our k8s cluster.
