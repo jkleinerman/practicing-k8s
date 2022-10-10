@@ -569,3 +569,26 @@ Ingress
 
 It routes the traffic to the appropiate pod according to the path.
 It is necessary to install a Nginx controller in our k8s cluster.
+
+
+Copy Files to a Pod
++++++++++++++++++++
+
+Copy /tmp/foo from a remote pod to /tmp/bar locally
+
+.. code-block::
+
+  kubectl cp <some-namespace>/<some-pod>:/tmp/foo /tmp/bar
+
+Example
+
+.. code-block::
+
+  kubectl cp infra-crypto-squad/center-scape-8b68bf54b-dn74v:/usr/share/rfcode/centerscape/k8s-cscap-conf.tgz ./k8s-cscap-conf.tgz
+
+
+Copy /tmp/foo local file to /tmp/bar in a remote pod in namespace
+
+.. code-block::
+
+  kubectl cp /tmp/foo <some-namespace>/<some-pod>:/tmp/bar
